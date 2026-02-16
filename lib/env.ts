@@ -23,9 +23,26 @@ if (!parsed.success) {
 
 export const env = {
   ...parsed.data,
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: parsed.data.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: normalizePrivateKey(parsed.data.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
 };
 
 export const allowedEmails = new Set(
   env.ALLOWED_EMAILS.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
 );
+
+function normalizePrivateKey(rawKey: string) {
+  let key = rawKey.trim();
+
+  // Common case in Vercel: value pasted with surrounding quotes.
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+
+  return key
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .trim();
+}
