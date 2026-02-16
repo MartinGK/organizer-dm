@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #070b14;
+  --surface: #0d1320;
+  --surface-elevated: #121a2a;
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8fafc;
+  --text-muted: rgba(248, 250, 252, 0.7);
+  --accent: #7bd7c6;
+  --accent-alt: #4d7eff;
+  --accent-violet: #7d4dff;
+  --success: #7bd7c6;
+  --danger: #ff7a92;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme='light'] {
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --border: rgba(11, 15, 20, 0.1);
+  --text-primary: #0f1720;
+  --text-muted: rgba(15, 23, 32, 0.65);
+  --accent: #189b7c;
+  --accent-alt: #315fdd;
+  --accent-violet: #6a43d7;
+  --success: #189b7c;
+  --danger: #b84a4a;
+  --shadow: 0 8px 24px rgba(11, 15, 20, 0.08);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(123, 215, 198, 0.16), transparent 34%),
+    radial-gradient(circle at 78% 10%, rgba(125, 77, 255, 0.14), transparent 38%),
+    radial-gradient(circle at 42% 100%, rgba(77, 126, 255, 0.12), transparent 42%),
+    var(--bg);
+  color: var(--text-primary);
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .app-shell {
+    padding: 1.5rem;
+  }
+}
+
+.panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 45%), var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.metric-positive {
+  color: var(--success);
+}
+
+.metric-negative {
+  color: var(--danger);
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
