@@ -2,15 +2,26 @@
 
 import { useMemo } from 'react';
 
-import { calculateFinancialProjection, monthlyEquivalentForMonth } from '@/lib/finance/calculations';
-import type { ProjectionResultMap } from '@/lib/finance/types';
+import {
+  buildProjectionComparison,
+  buildProjectionGraphSeries,
+  calculateFinancialProjection,
+  monthlyEquivalentForMonth,
+} from '@/lib/finance/calculations';
+import type { ProjectionComparisonDatum, ProjectionGraphSeriesByHorizon, ProjectionResultMap } from '@/lib/finance/types';
 import type { Entry } from '@/types/entry';
+
+type FinancialProjectionBundle = {
+  projectionByHorizon: ProjectionResultMap;
+  seriesByHorizon: ProjectionGraphSeriesByHorizon;
+  comparisonData: ProjectionComparisonDatum[];
+};
 
 export function useFinancialProjections(
   entries: Entry[],
   baseMonth: Date,
   cashOnHand: number | null,
-): ProjectionResultMap {
+): FinancialProjectionBundle {
   const projectionEntries = useMemo(
     () =>
       entries.map((entry) => ({
@@ -20,8 +31,15 @@ export function useFinancialProjections(
     [baseMonth, entries],
   );
 
-  return useMemo(
-    () => calculateFinancialProjection(projectionEntries, { baseMonth, cashOnHand }),
-    [baseMonth, cashOnHand, projectionEntries],
-  );
+  return useMemo(() => {
+    const projectionByHorizon = calculateFinancialProjection(projectionEntries, { baseMonth, cashOnHand });
+    const seriesByHorizon = buildProjectionGraphSeries(projectionEntries, { baseMonth, cashOnHand });
+    const comparisonData = buildProjectionComparison(projectionByHorizon);
+
+    return {
+      projectionByHorizon,
+      seriesByHorizon,
+      comparisonData,
+    };
+  }, [baseMonth, cashOnHand, projectionEntries]);
 }

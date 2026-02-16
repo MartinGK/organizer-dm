@@ -2,7 +2,10 @@ import { addMonths, parseISO } from 'date-fns';
 
 import { monthKey } from '@/lib/format/date';
 import type {
+  ProjectionComparisonDatum,
   ProjectionEntryInput,
+  ProjectionGraphPoint,
+  ProjectionGraphSeriesByHorizon,
   ProjectionHorizonConfig,
   ProjectionResultMap,
   ProjectionSummary,
@@ -112,15 +115,7 @@ export function calculateFinancialProjection(
   { baseMonth = new Date(), cashOnHand = null }: ProjectionOptions = {},
 ): ProjectionResultMap {
   const baseMonthKey = monthKey(baseMonth);
-
-  const recurringEntries = entries.filter((entry) => {
-    if (entry.frequency !== 'monthly' && entry.frequency !== 'annual') {
-      return false;
-    }
-
-    const start = monthKey(parseISO(entry.start_date));
-    return start <= baseMonthKey;
-  });
+  const recurringEntries = getRecurringEntriesForProjection(entries, baseMonthKey);
 
   const oneTimeEntries = entries.filter((entry) => entry.frequency === 'one_time');
 
@@ -178,6 +173,74 @@ export function calculateFinancialProjection(
   }
 
   return result;
+}
+
+export function buildProjectionGraphSeries(
+  entries: ProjectionEntryInput[],
+  { baseMonth = new Date(), cashOnHand = null }: ProjectionOptions = {},
+): ProjectionGraphSeriesByHorizon {
+  const baseMonthKey = monthKey(baseMonth);
+  const recurringEntries = getRecurringEntriesForProjection(entries, baseMonthKey);
+  const result = {} as ProjectionGraphSeriesByHorizon;
+
+  for (const horizon of PROJECTION_HORIZONS) {
+    const points: ProjectionGraphPoint[] = [];
+    let cumulativeFromZero = 0;
+
+    for (let monthOffset = 0; monthOffset < horizon.months; monthOffset += 1) {
+      const month = addMonths(baseMonth, monthOffset);
+      const currentMonthKey = monthKey(month);
+      let income = 0;
+      let expenses = 0;
+
+      for (const entry of recurringEntries) {
+        if (!entryIsActiveInMonth(entry, currentMonthKey)) {
+          continue;
+        }
+
+        if (entry.type === 'income') {
+          income += entry.monthly_equivalent;
+        } else {
+          expenses += entry.monthly_equivalent;
+        }
+      }
+
+      const net = income - expenses;
+      cumulativeFromZero += net;
+      points.push({
+        month: currentMonthKey,
+        income,
+        expenses,
+        net,
+        cumulative_from_zero: cumulativeFromZero,
+        cumulative_from_cash_on_hand: cashOnHand !== null ? cashOnHand + cumulativeFromZero : null,
+      });
+    }
+
+    result[horizon.key] = points;
+  }
+
+  return result;
+}
+
+export function buildProjectionComparison(projection: ProjectionResultMap): ProjectionComparisonDatum[] {
+  return PROJECTION_HORIZONS.map((horizon) => ({
+    horizon,
+    total_income: projection[horizon.key].total_income,
+    total_expenses: projection[horizon.key].total_expenses,
+    net_result: projection[horizon.key].net_result,
+  }));
+}
+
+function getRecurringEntriesForProjection(entries: ProjectionEntryInput[], baseMonthKey: string) {
+  return entries.filter((entry) => {
+    if (entry.frequency !== 'monthly' && entry.frequency !== 'annual') {
+      return false;
+    }
+
+    const start = monthKey(parseISO(entry.start_date));
+    return start <= baseMonthKey;
+  });
 }
 
 function entryIsActiveInMonth(entry: ProjectionEntryInput, month: string) {

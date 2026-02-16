@@ -9,6 +9,7 @@ import { EntriesTable } from '@/components/entries-table';
 import { EntryModal } from '@/components/entry-modal';
 import { InsightsDashboard } from '@/components/insights-dashboard';
 import { KpiCard } from '@/components/kpi-card';
+import { ProjectionGraphs } from '@/components/projection-graphs';
 import { ProjectionTable } from '@/components/projection-table';
 import { StrategicOutlook } from '@/components/strategic-outlook';
 import { useFinancialProjections } from '@/hooks/use-financial-projections';
@@ -266,7 +267,12 @@ export function FinanceDashboard({ email, initialEntries, settings }: DashboardP
         {activeTab === 'projections' ? (
           <section className="space-y-6">
             <ProjectionTable rows={projection} currency={settings.currency} />
-            <StrategicOutlook projection={strategicProjection} currency={settings.currency} />
+            <StrategicOutlook projection={strategicProjection.projectionByHorizon} currency={settings.currency} />
+            <ProjectionGraphs
+              seriesByHorizon={strategicProjection.seriesByHorizon}
+              comparisonData={strategicProjection.comparisonData}
+              currency={settings.currency}
+            />
           </section>
         ) : null}
 

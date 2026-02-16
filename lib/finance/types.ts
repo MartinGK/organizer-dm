@@ -47,6 +47,24 @@ export type ProjectionEntryInput = Entry & {
   monthly_equivalent: number;
 };
 
+export type ProjectionGraphPoint = {
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+  cumulative_from_zero: number;
+  cumulative_from_cash_on_hand: number | null;
+};
+
+export type ProjectionGraphSeriesByHorizon = Record<ProjectionHorizonKey, ProjectionGraphPoint[]>;
+
+export type ProjectionComparisonDatum = {
+  horizon: ProjectionHorizonConfig;
+  total_income: number;
+  total_expenses: number;
+  net_result: number;
+};
+
 export type ExpenseDistributionDatum = {
   concept: string;
   value: number;
