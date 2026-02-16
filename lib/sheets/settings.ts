@@ -23,10 +23,11 @@ export async function getSettings(): Promise<AppSettings> {
 
   const currency = settingsMap.get('currency') ?? env.DEFAULT_CURRENCY;
   const cashRaw = settingsMap.get('cashOnHand');
+  const cashValue = cashRaw ? Number(cashRaw) : null;
 
   return settingsSchema.parse({
     currency,
-    cashOnHand: cashRaw ? Number(cashRaw) : null,
+    cashOnHand: Number.isFinite(cashValue) ? cashValue : null,
   });
 }
 

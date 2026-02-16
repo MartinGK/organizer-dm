@@ -19,9 +19,25 @@ async function readRows() {
 
 export async function listEntries(): Promise<Entry[]> {
   const rows = await readRows();
-  return rows
-    .filter((row) => (row[0] ?? '').trim().length > 0)
-    .map((row) => mapRowToEntry(row));
+  const entries: Entry[] = [];
+
+  for (const row of rows) {
+    if ((row[0] ?? '').trim().length === 0) {
+      continue;
+    }
+
+    try {
+      entries.push(mapRowToEntry(row));
+    } catch (error) {
+      console.error('Skipping invalid financial row', {
+        id: row[0] ?? '',
+        concept: row[1] ?? '',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return entries;
 }
 
 export async function createEntry(entry: Entry) {

@@ -19,14 +19,14 @@ export function mapRowToEntry(row: string[]): Entry {
   const hasEndDateColumn = row.length >= 8;
 
   const parsedRow = sheetRowSchema.parse({
-    id: row[0] ?? '',
-    concept: row[1] ?? '',
-    type: row[2] ?? '',
-    frequency: row[3] ?? '',
-    amount: row[4] ?? '0',
-    start_date: row[5] ?? '',
-    end_date: hasEndDateColumn ? row[6] ?? '' : '',
-    notes: hasEndDateColumn ? row[7] ?? '' : row[6] ?? '',
+    id: (row[0] ?? '').trim(),
+    concept: (row[1] ?? '').trim(),
+    type: (row[2] ?? '').trim().toLowerCase(),
+    frequency: normalizeFrequency((row[3] ?? '').trim().toLowerCase()),
+    amount: (row[4] ?? '0').trim(),
+    start_date: (row[5] ?? '').trim(),
+    end_date: hasEndDateColumn ? (row[6] ?? '').trim() : '',
+    notes: hasEndDateColumn ? (row[7] ?? '').trim() : (row[6] ?? '').trim(),
   });
 
   return entrySchema.parse({
@@ -39,6 +39,14 @@ export function mapRowToEntry(row: string[]): Entry {
     end_date: parsedRow.end_date ? parsedRow.end_date : null,
     notes: parsedRow.notes ?? '',
   });
+}
+
+function normalizeFrequency(frequency: string) {
+  if (frequency === 'yearly') {
+    return 'annual';
+  }
+
+  return frequency;
 }
 
 export function mapEntryToRow(entry: Entry): string[] {
