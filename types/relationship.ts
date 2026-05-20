@@ -21,14 +21,17 @@ export const relationshipTargetInputSchema = z.discriminatedUnion('target_type',
   z.object({
     target_type: z.literal('entry'),
     target_id: z.string().min(1),
+    source_entry_id: z.string().min(1).optional(),
   }),
   z.object({
     target_type: z.literal('label'),
     target_id: z.string().min(1),
+    source_entry_id: z.string().min(1).optional(),
   }),
   z.object({
     target_type: z.literal('new_label'),
     name: z.string().min(1).max(80),
+    source_entry_id: z.string().min(1).optional(),
   }),
 ]);
 

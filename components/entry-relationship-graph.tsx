@@ -42,6 +42,7 @@ type GraphNodeData = {
 export function EntryRelationshipGraph({ entry, entries, labels, relationships, currency }: Props) {
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [balanceOpen, setBalanceOpen] = useState(false);
   const [selectedRelationship, setSelectedRelationship] = useState<EntryRelationship | null>(null);
   const [labelName, setLabelName] = useState('');
   const [savingLabel, setSavingLabel] = useState(false);
@@ -52,6 +53,10 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
   const directRelationships = useMemo(
     () => relationships.filter((relationship) => relationshipBelongsToEntry(relationship, entry.id)),
     [entry.id, relationships],
+  );
+  const visibleBalanceEntries = useMemo(
+    () => getVisibleBalanceEntries(entry, directRelationships, entriesById),
+    [directRelationships, entriesById, entry],
   );
 
   const { nodes, edges } = useMemo(
@@ -146,6 +151,9 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
           <p className="mt-1 text-sm muted">Direct financial ecosystem for this entry.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={() => setBalanceOpen((current) => !current)}>
+            Balance
+          </Button>
           <Button
             variant="ghost"
             onClick={() => {
@@ -161,6 +169,8 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
       </div>
 
       {error ? <p className="text-sm metric-negative">{error}</p> : null}
+
+      {balanceOpen ? <EntryBalancePanel entries={visibleBalanceEntries} currency={currency} /> : null}
 
       {selectedRelationship?.target_type === 'entry' ? (
         <article className="panel p-4">
@@ -497,6 +507,74 @@ function RelationshipPicker({
   );
 }
 
+function EntryBalancePanel({ entries, currency }: { entries: Entry[]; currency: Currency }) {
+  const incomes = entries.filter((entry) => entry.type === 'income');
+  const expenses = entries.filter((entry) => entry.type === 'expense');
+  const totalIncome = incomes.reduce((sum, entry) => sum + entry.amount, 0);
+  const totalExpenses = expenses.reduce((sum, entry) => sum + entry.amount, 0);
+  const result = totalIncome - totalExpenses;
+
+  return (
+    <article className="panel p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Balance</h3>
+          <p className="mt-1 text-sm muted">Debe y haber del ecosistema visible.</p>
+        </div>
+        <div className="text-left sm:text-right">
+          <p className="text-xs uppercase tracking-[0.12em] muted">Resultado</p>
+          <p className={`mt-1 text-2xl font-semibold ${result < 0 ? 'metric-negative' : 'metric-positive'}`}>
+            {formatCurrency(result, currency)}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BalanceColumn title="Haber" entries={incomes} total={totalIncome} currency={currency} emptyLabel="No income entries." />
+        <BalanceColumn title="Debe" entries={expenses} total={totalExpenses} currency={currency} emptyLabel="No expense entries." />
+      </div>
+    </article>
+  );
+}
+
+function BalanceColumn({
+  title,
+  entries,
+  total,
+  currency,
+  emptyLabel,
+}: {
+  title: string;
+  entries: Entry[];
+  total: number;
+  currency: Currency;
+  emptyLabel: string;
+}) {
+  return (
+    <section className="rounded-xl border p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h4 className="font-semibold">{title}</h4>
+        <p className="text-sm font-medium">{formatCurrency(total, currency)}</p>
+      </div>
+      <div className="space-y-2">
+        {entries.length === 0 ? (
+          <p className="text-sm muted">{emptyLabel}</p>
+        ) : (
+          entries.map((entry) => (
+            <div key={entry.id} className="flex items-start justify-between gap-3 rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{entry.concept}</p>
+                <p className="mt-0.5 text-xs muted">{entry.frequency}</p>
+              </div>
+              <p className="shrink-0 text-sm font-medium">{formatCurrency(entry.amount, currency)}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 function useForceLayout(
   enabled: boolean,
   graphKey: string,
@@ -597,6 +675,28 @@ function useForceLayout(
       }
     };
   }, [edges, enabled, graphKey, setNodes]);
+}
+
+function getVisibleBalanceEntries(
+  entry: Entry,
+  directRelationships: EntryRelationship[],
+  entriesById: Map<string, Entry>,
+) {
+  const balanceEntries = new Map<string, Entry>([[entry.id, entry]]);
+
+  for (const relationship of directRelationships) {
+    if (relationship.target_type !== 'entry') continue;
+    const relatedEntryId = relationship.entry_id === entry.id ? relationship.target_id : relationship.entry_id;
+    const relatedEntry = entriesById.get(relatedEntryId);
+    if (relatedEntry) {
+      balanceEntries.set(relatedEntry.id, relatedEntry);
+    }
+  }
+
+  return Array.from(balanceEntries.values()).sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'income' ? -1 : 1;
+    return b.amount - a.amount;
+  });
 }
 
 function buildGraph(

@@ -100,7 +100,11 @@ Relationships can connect:
 
 The add relation flow supports searching entries and labels, selecting multiple targets, creating a new label from the search text, or creating a new entry and immediately relating it to the current entry. Monthly, annual, and one-time entries are all valid relationship targets. Already-related targets and pending selections are excluded from the picker.
 
+New relationships expand automatically across the visible direct entry ecosystem. If entry A is directly related to B and C, adding D from A creates A-D, B-D, and C-D. Adding multiple entries also relates the newly added entries to each other. Adding a label connects that label to the current entry and its direct entry neighbors.
+
 Graph node positions are remembered per entry in browser `localStorage`. Users can drag nodes into a useful arrangement or reset the layout back to the automatic force layout.
+
+The entry detail page can show a balance panel for the visible ecosystem. The balance includes the current entry and direct related entries only, splits `income` entries into Haber and `expense` entries into Debe, uses each entry's original `amount`, and shows the final result in positive or negative tone. Labels do not affect the balance.
 
 Direct entry relationships can be converted into a label. When that happens, the direct entry-entry edge is removed and both entries are connected to the label node. This preserves the label as the shared context without making every entry under that label directly related to each other.
 

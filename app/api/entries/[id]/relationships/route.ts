@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { assertApiAllowedUser } from '@/lib/auth';
 import { listEntries } from '@/lib/sheets/entries';
 import {
-  createRelationshipsForEntry,
+  createExpandedRelationshipsForEntry,
   listRelationshipLabels,
   listRelationships,
 } from '@/lib/sheets/relationships';
@@ -81,7 +81,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
     }
 
-    const created = await createRelationshipsForEntry(id, parsed.targets);
+    const created = await createExpandedRelationshipsForEntry(id, parsed.targets);
 
     return NextResponse.json({ data: created, error: null }, { status: 201 });
   } catch (error) {

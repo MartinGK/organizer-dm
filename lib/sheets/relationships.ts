@@ -115,20 +115,63 @@ export async function createOrReuseRelationshipLabel(name: string) {
 
 export async function createRelationshipsForEntry(entryId: string, targets: RelationshipTargetInput[]) {
   const relationships = await listRelationships();
+  return createRelationshipsFromRows(entryId, targets, relationships);
+}
+
+export async function createExpandedRelationshipsForEntry(entryId: string, targets: RelationshipTargetInput[]) {
+  const relationships = await listRelationships();
+  const directEntryIds = getDirectEntryRelationshipIds(entryId, relationships);
+  const targetEntryIds = targets
+    .filter((target): target is Extract<RelationshipTargetInput, { target_type: 'entry' }> => target.target_type === 'entry')
+    .map((target) => target.target_id)
+    .filter((targetId) => targetId !== entryId);
+  const ecosystemEntryIds = Array.from(new Set([entryId, ...directEntryIds, ...targetEntryIds]));
+  const expandedTargets: RelationshipTargetInput[] = [];
+
+  for (const target of targets) {
+    if (target.target_type === 'entry') {
+      for (const sourceEntryId of ecosystemEntryIds) {
+        if (sourceEntryId === target.target_id) continue;
+        expandedTargets.push({ target_type: 'entry', target_id: target.target_id, source_entry_id: sourceEntryId });
+      }
+      continue;
+    }
+
+    for (const sourceEntryId of ecosystemEntryIds) {
+      expandedTargets.push({ ...target, source_entry_id: sourceEntryId });
+    }
+  }
+
+  return createRelationshipsFromRows(entryId, expandedTargets, relationships);
+}
+
+async function createRelationshipsFromRows(
+  fallbackEntryId: string,
+  targets: RelationshipTargetInput[],
+  relationships: EntryRelationship[],
+) {
   const created: EntryRelationship[] = [];
   const nextRows = [...relationships];
   const now = new Date().toISOString();
+  const newLabelIdsByName = new Map<string, string>();
 
   for (const target of targets) {
-    const resolvedTarget =
-      target.target_type === 'new_label'
-        ? { target_type: 'label' as const, target_id: (await createOrReuseRelationshipLabel(target.name)).id }
-        : target;
+    const sourceEntryId = target.source_entry_id ?? fallbackEntryId;
+    let resolvedTarget: Extract<RelationshipTargetInput, { target_type: 'entry' | 'label' }>;
+
+    if (target.target_type === 'new_label') {
+      const normalizedName = target.name.trim().toLowerCase();
+      const labelId = newLabelIdsByName.get(normalizedName) ?? (await createOrReuseRelationshipLabel(target.name)).id;
+      newLabelIdsByName.set(normalizedName, labelId);
+      resolvedTarget = { target_type: 'label', target_id: labelId };
+    } else {
+      resolvedTarget = target;
+    }
 
     if (resolvedTarget.target_type === 'entry') {
-      if (resolvedTarget.target_id === entryId) continue;
+      if (resolvedTarget.target_id === sourceEntryId) continue;
 
-      const [left, right] = canonicalEntryPair(entryId, resolvedTarget.target_id);
+      const [left, right] = canonicalEntryPair(sourceEntryId, resolvedTarget.target_id);
       const existing = nextRows.find(
         (relationship) =>
           relationship.target_type === 'entry' &&
@@ -154,7 +197,7 @@ export async function createRelationshipsForEntry(entryId: string, targets: Rela
     const existing = nextRows.find(
       (relationship) =>
         relationship.target_type === 'label' &&
-        relationship.entry_id === entryId &&
+        relationship.entry_id === sourceEntryId &&
         relationship.target_id === resolvedTarget.target_id,
     );
 
@@ -162,7 +205,7 @@ export async function createRelationshipsForEntry(entryId: string, targets: Rela
 
     const relationship = entryRelationshipSchema.parse({
       id: uuidv4(),
-      entry_id: entryId,
+      entry_id: sourceEntryId,
       target_type: 'label',
       target_id: resolvedTarget.target_id,
       created_at: now,
@@ -282,4 +325,23 @@ async function writeRelationships(relationships: EntryRelationship[]) {
 
 function canonicalEntryPair(left: string, right: string) {
   return [left, right].sort((a, b) => a.localeCompare(b));
+}
+
+function getDirectEntryRelationshipIds(entryId: string, relationships: EntryRelationship[]) {
+  const ids = new Set<string>();
+
+  for (const relationship of relationships) {
+    if (relationship.target_type !== 'entry') continue;
+
+    if (relationship.entry_id === entryId) {
+      ids.add(relationship.target_id);
+      continue;
+    }
+
+    if (relationship.target_id === entryId) {
+      ids.add(relationship.entry_id);
+    }
+  }
+
+  return Array.from(ids);
 }
