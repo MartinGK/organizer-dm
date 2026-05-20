@@ -9,6 +9,7 @@ This repository is a Next.js 16 App Router project with TypeScript.
 - `public/`: static assets.
 - Root configs: `eslint.config.mjs`, `tsconfig.json`, `next.config.ts`, `.env.example`.
 - Data contract note: `financial_data` rows are `id, concept, type, frequency, amount, start_date, end_date, notes` (`end_date` optional).
+- Product context: `SOUL.md` explains the end-to-end product purpose, user flows, data contracts, finance rules, and feature integration guidance.
 
 ## Build, Test, and Development Commands
 Use npm scripts from `package.json`:
@@ -46,3 +47,8 @@ For pull requests, include:
 - Never commit `.env.local` or service account secrets.
 - Keep `ALLOWED_EMAILS` restricted to approved users.
 - Ensure OAuth callback URLs match local and deployed domains.
+
+## Product Context Maintenance
+- Read `SOUL.md` before implementing features or changing finance behavior, data contracts, routes, integrations, or main user workflows.
+- Update `SOUL.md` in the same change whenever a feature is added, removed, or meaningfully changed so future AI agents and maintainers retain accurate product context.
+- Keep `SOUL.md` focused on what the product does end to end, how data flows, and which rules or constraints matter for future feature work.
