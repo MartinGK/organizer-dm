@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
 import { FilterBar, type FilterState } from '@/components/filter-bar';
@@ -81,7 +82,11 @@ export function EntriesTable({
           <tbody>
             {filteredEntries.map((entry) => (
               <tr key={entry.id} className="border-b border-[var(--border)]/60">
-                <td className="px-3 py-2">{entry.concept}</td>
+                <td className="px-3 py-2">
+                  <Link className="font-medium hover:text-[var(--accent)]" href={`/entries/${entry.id}`}>
+                    {entry.concept}
+                  </Link>
+                </td>
                 <td className="px-3 py-2">
                   <Badge tone={entry.type === 'income' ? 'success' : 'danger'}>{entry.type}</Badge>
                 </td>
@@ -105,7 +110,11 @@ export function EntriesTable({
           <article key={entry.id} className="rounded-xl border p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-semibold">{entry.concept}</h3>
+                <h3 className="font-semibold">
+                  <Link className="hover:text-[var(--accent)]" href={`/entries/${entry.id}`}>
+                    {entry.concept}
+                  </Link>
+                </h3>
                 <p className="mt-1 text-xs muted">{entry.start_date}</p>
               </div>
               <Badge tone={entry.type === 'income' ? 'success' : 'danger'}>{entry.type}</Badge>

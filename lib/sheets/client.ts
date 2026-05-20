@@ -3,6 +3,10 @@ import { google, sheets_v4 } from 'googleapis';
 import { env } from '@/lib/env';
 
 let sheetsClient: sheets_v4.Sheets | null = null;
+let sheetTitlesCache: Set<string> | null = null;
+let sheetTitlesPromise: Promise<Set<string>> | null = null;
+const ensuredHeaderKeys = new Set<string>();
+const headerEnsurePromises = new Map<string, Promise<void>>();
 
 export function getSheetsClient() {
   if (sheetsClient) {
@@ -19,20 +23,45 @@ export function getSheetsClient() {
   return sheetsClient;
 }
 
-async function ensureSheetExists(tabName: string) {
+async function getSheetTitles() {
   const sheets = getSheetsClient();
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
 
-  const spreadsheet = await sheets.spreadsheets.get({
-    spreadsheetId,
-    fields: 'sheets.properties',
-  });
+  if (sheetTitlesCache) {
+    return sheetTitlesCache;
+  }
 
-  const hasSheet = (spreadsheet.data.sheets ?? []).some(
-    (sheet) => sheet.properties?.title === tabName,
-  );
+  if (sheetTitlesPromise) {
+    return sheetTitlesPromise;
+  }
 
-  if (hasSheet) {
+  sheetTitlesPromise = sheets.spreadsheets
+    .get({
+      spreadsheetId,
+      fields: 'sheets.properties.title',
+    })
+    .then((spreadsheet) => {
+      const titles = new Set(
+        (spreadsheet.data.sheets ?? [])
+          .map((sheet) => sheet.properties?.title)
+          .filter((title): title is string => !!title),
+      );
+      sheetTitlesCache = titles;
+      return titles;
+    })
+    .finally(() => {
+      sheetTitlesPromise = null;
+    });
+
+  return sheetTitlesPromise;
+}
+
+async function ensureSheetExists(tabName: string) {
+  const sheets = getSheetsClient();
+  const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  const sheetTitles = await getSheetTitles();
+
+  if (sheetTitles.has(tabName)) {
     return;
   }
 
@@ -51,16 +80,44 @@ async function ensureSheetExists(tabName: string) {
         ],
       },
     });
+    sheetTitles.add(tabName);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
     if (!message.toLowerCase().includes('already exists')) {
       throw error;
     }
+
+    sheetTitles.add(tabName);
   }
 }
 
 export async function ensureSheetHeaders(tabName: string, headers: string[]) {
+  const headerKey = `${tabName}:${headers.join('|')}`;
+
+  if (ensuredHeaderKeys.has(headerKey)) {
+    return;
+  }
+
+  const existingPromise = headerEnsurePromises.get(headerKey);
+  if (existingPromise) {
+    await existingPromise;
+    return;
+  }
+
+  const promise = ensureSheetHeadersUncached(tabName, headers)
+    .then(() => {
+      ensuredHeaderKeys.add(headerKey);
+    })
+    .finally(() => {
+      headerEnsurePromises.delete(headerKey);
+    });
+
+  headerEnsurePromises.set(headerKey, promise);
+  await promise;
+}
+
+async function ensureSheetHeadersUncached(tabName: string, headers: string[]) {
   await ensureSheetExists(tabName);
 
   const sheets = getSheetsClient();

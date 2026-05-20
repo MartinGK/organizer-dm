@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Providers } from '@/components/providers';
 
 import './globals.css';
+import 'reactflow/dist/style.css';
 
 const executiveSans = localFont({
   src: './fonts/geist-latin.woff2',

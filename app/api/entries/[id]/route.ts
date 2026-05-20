@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { assertApiAllowedUser } from '@/lib/auth';
 import { deleteEntry, listEntries, updateEntry } from '@/lib/sheets/entries';
+import { deleteRelationshipsForEntry } from '@/lib/sheets/relationships';
 import { entrySchema, entryUpdateSchema } from '@/types/entry';
 
 function normalizeForFrequency<T extends { frequency: string; end_date?: string | null }>(entry: T) {
@@ -72,6 +73,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
       { status: 404 },
     );
   }
+
+  await deleteRelationshipsForEntry(id);
 
   return NextResponse.json({ data: { id }, error: null });
 }

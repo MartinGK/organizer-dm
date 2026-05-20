@@ -12,9 +12,10 @@ type EntryFormProps = {
   initial?: Entry;
   onSubmit: (payload: EntryInput) => Promise<void>;
   onCancel: () => void;
+  submitLabel?: string;
 };
 
-export function EntryForm({ initial, onSubmit, onCancel }: EntryFormProps) {
+export function EntryForm({ initial, onSubmit, onCancel, submitLabel = 'Save entry' }: EntryFormProps) {
   const [concept, setConcept] = useState(initial?.concept ?? '');
   const [type, setType] = useState<EntryInput['type']>(initial?.type ?? 'expense');
   const [frequency, setFrequency] = useState<EntryInput['frequency']>(initial?.frequency ?? 'monthly');
@@ -131,7 +132,7 @@ export function EntryForm({ initial, onSubmit, onCancel }: EntryFormProps) {
           Cancel
         </Button>
         <Button disabled={saving} type="submit">
-          {saving ? 'Saving...' : 'Save entry'}
+          {saving ? 'Saving...' : submitLabel}
         </Button>
       </div>
     </form>

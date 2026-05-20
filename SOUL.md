@@ -41,6 +41,26 @@ Rows use `key, value` pairs:
 - `currency`: `USD` or `ARS`.
 - `cashOnHand`: optional number used for runway and cash-base projections.
 
+### `entry_relations`
+Rows store direct relationship edges for the relationship graph:
+
+```txt
+id, entry_id, target_type, target_id, created_at
+```
+
+- `target_type`: `entry` or `label`.
+- Entry-to-entry relationships are bilateral in product behavior and stored canonically as one row.
+- Entry-to-label relationships connect only that entry to the label; they do not implicitly connect the entry to other entries under the same label.
+
+### `entry_relation_labels`
+Rows store reusable relationship label nodes:
+
+```txt
+id, name, created_at, updated_at
+```
+
+Labels are entities in the graph. They can group multiple entries while keeping smaller financial ecosystems isolated from larger ones.
+
 ## Main Application Areas
 ### Authentication
 - NextAuth uses Google OAuth with JWT sessions.
@@ -64,10 +84,36 @@ Entries can be created, edited, finished, and deleted.
 - Update: `PATCH /api/entries/[id]`.
 - Delete: `DELETE /api/entries/[id]`.
 - List: `GET /api/entries`.
+- Detail graph: `/entries/[id]`.
 
 All entry payloads are validated with Zod schemas in `types/entry.ts`.
 
 Finishing an entry is a UI shortcut that patches `end_date` to today's date. This is mainly for recurring commitments that should stop affecting future months.
+
+### Relationship Graph
+Each entry can be opened from the Entries table. The entry detail page shows a React Flow graph centered on that entry and limited to direct neighbors. The graph uses a force-style layout with node repulsion, edge attraction, and gravity toward the central entry.
+
+Relationships can connect:
+
+- Entry to entry.
+- Entry to label.
+
+The add relation flow supports searching entries and labels, selecting multiple targets, creating a new label from the search text, or creating a new entry and immediately relating it to the current entry. Monthly, annual, and one-time entries are all valid relationship targets. Already-related targets and pending selections are excluded from the picker.
+
+Graph node positions are remembered per entry in browser `localStorage`. Users can drag nodes into a useful arrangement or reset the layout back to the automatic force layout.
+
+Direct entry relationships can be converted into a label. When that happens, the direct entry-entry edge is removed and both entries are connected to the label node. This preserves the label as the shared context without making every entry under that label directly related to each other.
+
+Clicking an entry node navigates to that entry detail page. Clicking a label node navigates to the connected income with the highest amount; if the label has no connected income, it navigates to the connected expense with the highest amount.
+
+Relationship APIs:
+
+- `GET /api/entries/[id]/relationships`.
+- `POST /api/entries/[id]/relationships`.
+- `DELETE /api/entries/[id]/relationships/[relationshipId]`.
+- `PATCH /api/entries/[id]/relationships/[relationshipId]/label`.
+
+Deleting an entry also deletes its relationships so the graph does not keep broken references.
 
 ### Settings Management
 Global settings are read and updated through:
@@ -126,6 +172,7 @@ Insights focus on recurring operational health:
 - Persistence: Google Sheets API through a service account.
 - Validation: Zod schemas at API and sheet-mapping boundaries.
 - Formatting: centralized currency and date helpers.
+- Graphing: React Flow for entry relationship maps.
 
 Important folders:
 
