@@ -10,7 +10,7 @@ export function Button({ className, variant = 'primary', ...props }: Props) {
   return (
     <button
       className={cn(
-        'inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors',
+        'inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed',
         variant === 'primary' &&
           'border-transparent text-white bg-[linear-gradient(90deg,var(--accent),var(--accent-alt),var(--accent-violet))] hover:brightness-110',
         variant === 'ghost' && 'bg-transparent hover:bg-white/5',

@@ -34,6 +34,14 @@ html[data-theme='light'] {
   border-color: var(--border);
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 body {
   background:
     radial-gradient(circle at 8% 0%, rgba(123, 215, 198, 0.16), transparent 34%),

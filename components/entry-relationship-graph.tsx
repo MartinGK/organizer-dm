@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { addMonths, addYears, format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ReactFlow, {
   Background,
@@ -17,7 +20,9 @@ import { EntryForm } from '@/components/entry-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format/currency';
+import { monthKey } from '@/lib/format/date';
 import type { Entry, EntryInput } from '@/types/entry';
 import type { EntryRelationship, RelationshipLabel, RelationshipTargetInput } from '@/types/relationship';
 import type { Currency } from '@/types/settings';
@@ -42,7 +47,9 @@ type GraphNodeData = {
 export function EntryRelationshipGraph({ entry, entries, labels, relationships, currency }: Props) {
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [balanceOpen, setBalanceOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [balanceOpen, setBalanceOpen] = useState(true);
+  const [graphOpen, setGraphOpen] = useState(false);
   const [selectedRelationship, setSelectedRelationship] = useState<EntryRelationship | null>(null);
   const [labelName, setLabelName] = useState('');
   const [savingLabel, setSavingLabel] = useState(false);
@@ -116,6 +123,21 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
     router.refresh();
   }
 
+  async function editEntry(payload: EntryInput) {
+    try {
+      setError(null);
+      await requestJson(`/api/entries/${entry.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      setEditOpen(false);
+      router.refresh();
+    } catch (editError) {
+      setError(editError instanceof Error ? editError.message : 'Unable to update entry.');
+      throw editError;
+    }
+  }
+
   async function removeRelationship(relationshipId: string) {
     setError(null);
     await requestJson(`/api/entries/${entry.id}/relationships/${relationshipId}`, { method: 'DELETE' });
@@ -151,8 +173,14 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
           <p className="mt-1 text-sm muted">Direct financial ecosystem for this entry.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={() => setEditOpen(true)}>
+            Edit entry
+          </Button>
           <Button variant="ghost" onClick={() => setBalanceOpen((current) => !current)}>
             Balance
+          </Button>
+          <Button variant="ghost" onClick={() => setGraphOpen((current) => !current)}>
+            {graphOpen ? 'Hide graph' : 'Show graph'}
           </Button>
           <Button
             variant="ghost"
@@ -202,42 +230,44 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
         </article>
       ) : null}
 
-      <div className="panel h-[620px] overflow-hidden p-2">
-        <ReactFlow
-          nodes={flowNodes}
-          edges={edges}
-          fitView
-          minZoom={0.35}
-          nodesDraggable
-          defaultEdgeOptions={{
-            type: 'smoothstep',
-          }}
-          onNodesChange={(changes) => {
-            setHasStoredLayout(true);
-            setFlowNodes((current) => applyNodeChanges(changes, current));
-          }}
-          onEdgeClick={(_event, edge) => {
-            const relationship = directRelationships.find((candidate) => candidate.id === edge.id);
-            setSelectedRelationship(relationship ?? null);
-            setLabelName('');
-          }}
-          onNodeClick={(_event, node) => {
-            const data = node.data as GraphNodeData;
-            if (data.entryId && data.entryId !== entry.id) {
-              router.push(`/entries/${data.entryId}`);
-              return;
-            }
+      {graphOpen ? (
+        <div className="panel h-[620px] overflow-hidden p-2">
+          <ReactFlow
+            nodes={flowNodes}
+            edges={edges}
+            fitView
+            minZoom={0.35}
+            nodesDraggable
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+            }}
+            onNodesChange={(changes) => {
+              setHasStoredLayout(true);
+              setFlowNodes((current) => applyNodeChanges(changes, current));
+            }}
+            onEdgeClick={(_event, edge) => {
+              const relationship = directRelationships.find((candidate) => candidate.id === edge.id);
+              setSelectedRelationship(relationship ?? null);
+              setLabelName('');
+            }}
+            onNodeClick={(_event, node) => {
+              const data = node.data as GraphNodeData;
+              if (data.entryId && data.entryId !== entry.id) {
+                router.push(`/entries/${data.entryId}`);
+                return;
+              }
 
-            if (data.labelId) {
-              const destination = bestEntryForLabel(data.labelId, relationships, entriesById);
-              if (destination) router.push(`/entries/${destination.id}`);
-            }
-          }}
-        >
-          <Background color="rgba(248,250,252,0.16)" gap={20} />
-          <Controls />
-        </ReactFlow>
-      </div>
+              if (data.labelId) {
+                const destination = bestEntryForLabel(data.labelId, relationships, entriesById);
+                if (destination) router.push(`/entries/${destination.id}`);
+              }
+            }}
+          >
+            <Background color="rgba(248,250,252,0.16)" gap={20} />
+            <Controls />
+          </ReactFlow>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         {directRelationships.length === 0 ? (
@@ -288,7 +318,42 @@ export function EntryRelationshipGraph({ entry, entries, labels, relationships, 
         onClose={() => setPickerOpen(false)}
         onSubmit={createRelations}
       />
+
+      <EntryEditDialog
+        entry={entry}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSubmit={editEntry}
+      />
     </section>
+  );
+}
+
+function EntryEditDialog({
+  entry,
+  open,
+  onClose,
+  onSubmit,
+}: {
+  entry: Entry;
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (payload: EntryInput) => Promise<void>;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-0 sm:items-center sm:justify-center sm:p-4">
+      <div className="panel max-h-[90vh] w-full overflow-y-auto rounded-b-none p-5 sm:max-w-2xl sm:rounded-b-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Edit entry</h3>
+          <button className="muted text-sm" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+        <EntryForm initial={entry} onSubmit={onSubmit} onCancel={onClose} />
+      </div>
+    </div>
   );
 }
 
@@ -507,72 +572,235 @@ function RelationshipPicker({
   );
 }
 
+type BalanceOccurrence = {
+  entry: Entry;
+  month: string;
+  amount: number;
+};
+
+type BalanceMonthGroup = {
+  month: string;
+  label: string;
+  incomes: BalanceOccurrence[];
+  expenses: BalanceOccurrence[];
+  totalIncome: number;
+  totalExpenses: number;
+  net: number;
+};
+
 function EntryBalancePanel({ entries, currency }: { entries: Entry[]; currency: Currency }) {
-  const incomes = entries.filter((entry) => entry.type === 'income');
-  const expenses = entries.filter((entry) => entry.type === 'expense');
-  const totalIncome = incomes.reduce((sum, entry) => sum + entry.amount, 0);
-  const totalExpenses = expenses.reduce((sum, entry) => sum + entry.amount, 0);
+  const [horizonYears, setHorizonYears] = useState(1);
+  const balanceGroups = useMemo(() => buildBalanceMonthGroups(entries, horizonYears), [entries, horizonYears]);
+  const totalIncome = balanceGroups.reduce((sum, group) => sum + group.totalIncome, 0);
+  const totalExpenses = balanceGroups.reduce((sum, group) => sum + group.totalExpenses, 0);
   const result = totalIncome - totalExpenses;
 
   return (
     <article className="panel p-4">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">Balance</h3>
-          <p className="mt-1 text-sm muted">Debe y haber del ecosistema visible.</p>
+          <p className="mt-1 text-sm muted">Debe y haber por mes.</p>
         </div>
-        <div className="text-left sm:text-right">
-          <p className="text-xs uppercase tracking-[0.12em] muted">Resultado</p>
-          <p className={`mt-1 text-2xl font-semibold ${result < 0 ? 'metric-negative' : 'metric-positive'}`}>
-            {formatCurrency(result, currency)}
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] muted">Horizon</label>
+            <Select value={String(horizonYears)} onChange={(event) => setHorizonYears(Number(event.target.value))}>
+              <option value="1">1 year</option>
+              <option value="2">2 years</option>
+              <option value="5">5 years</option>
+            </Select>
+          </div>
+          <div className="text-left sm:text-right">
+            <p className="text-xs uppercase tracking-[0.12em] muted">Resultado</p>
+            <p className={`mt-1 text-2xl font-semibold ${result < 0 ? 'metric-negative' : 'metric-positive'}`}>
+              {formatCurrency(result, currency)}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <BalanceColumn title="Haber" entries={incomes} total={totalIncome} currency={currency} emptyLabel="No income entries." />
-        <BalanceColumn title="Debe" entries={expenses} total={totalExpenses} currency={currency} emptyLabel="No expense entries." />
+      <div className="mb-5 grid gap-3 text-sm sm:grid-cols-3">
+        <p>
+          <span className="muted">Haber</span> <span className="font-medium">{formatCurrency(totalIncome, currency)}</span>
+        </p>
+        <p>
+          <span className="muted">Debe</span> <span className="font-medium">{formatCurrency(totalExpenses, currency)}</span>
+        </p>
+        <p>
+          <span className="muted">Resultado</span>{' '}
+          <span className={`font-medium ${result < 0 ? 'metric-negative' : 'metric-positive'}`}>
+            {formatCurrency(result, currency)}
+          </span>
+        </p>
+      </div>
+
+      <div className="mb-3 grid gap-4 px-3 text-xs uppercase tracking-[0.12em] muted lg:grid-cols-2">
+        <div>Haber</div>
+        <div>Debe</div>
+      </div>
+
+      <div className="space-y-5">
+        {balanceGroups.map((group) => (
+          <section key={group.month}>
+            <div className="mb-2 flex items-center gap-3">
+              <h4 className="shrink-0 text-sm font-semibold">{group.label}</h4>
+              <div className="h-px flex-1 bg-[var(--border)]" />
+              <p className={`shrink-0 text-sm font-medium ${group.net < 0 ? 'metric-negative' : 'metric-positive'}`}>
+                {formatCurrency(group.net, currency)}
+              </p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <BalanceColumn occurrences={group.incomes} total={group.totalIncome} currency={currency} />
+              <BalanceColumn occurrences={group.expenses} total={group.totalExpenses} currency={currency} />
+            </div>
+          </section>
+        ))}
       </div>
     </article>
   );
 }
 
 function BalanceColumn({
-  title,
-  entries,
+  occurrences,
   total,
   currency,
-  emptyLabel,
 }: {
-  title: string;
-  entries: Entry[];
+  occurrences: BalanceOccurrence[];
   total: number;
   currency: Currency;
-  emptyLabel: string;
 }) {
+  const showTotal = total !== 0;
+
   return (
-    <section className="rounded-xl border p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h4 className="font-semibold">{title}</h4>
-        <p className="text-sm font-medium">{formatCurrency(total, currency)}</p>
-      </div>
+    <section>
       <div className="space-y-2">
-        {entries.length === 0 ? (
-          <p className="text-sm muted">{emptyLabel}</p>
-        ) : (
-          entries.map((entry) => (
-            <div key={entry.id} className="flex items-start justify-between gap-3 rounded-lg bg-[var(--surface-elevated)] px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{entry.concept}</p>
-                <p className="mt-0.5 text-xs muted">{entry.frequency}</p>
-              </div>
-              <p className="shrink-0 text-sm font-medium">{formatCurrency(entry.amount, currency)}</p>
+        {occurrences.map((occurrence) => (
+          <Link
+            key={`${occurrence.entry.id}:${occurrence.month}`}
+            className="flex items-start justify-between gap-3 rounded-lg px-3 py-1.5 transition-colors hover:bg-white/5"
+            href={`/entries/${occurrence.entry.id}`}
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {occurrence.entry.concept}{' '}
+                <span className="text-xs font-normal muted">{occurrence.entry.frequency}</span>
+              </p>
             </div>
-          ))
-        )}
+            <p className="shrink-0 text-sm font-medium">{formatCurrency(occurrence.amount, currency)}</p>
+          </Link>
+        ))}
       </div>
+      {showTotal ? (
+        <div className="mt-2 flex justify-end px-3">
+          <div className="w-1/2 border-t pt-2 text-right text-sm font-medium">
+            {formatCurrency(total, currency)}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function buildBalanceMonthGroups(entries: Entry[], horizonYears: number): BalanceMonthGroup[] {
+  const baseMonth = startOfMonth(new Date());
+  const endMonth = startOfMonth(addMonths(addYears(baseMonth, horizonYears), -1));
+  const groups = new Map<string, BalanceMonthGroup>();
+
+  for (let current = baseMonth; monthKey(current) <= monthKey(endMonth); current = addMonths(current, 1)) {
+    const currentKey = monthKey(current);
+    groups.set(currentKey, {
+      month: currentKey,
+      label: monthLabelEs(current),
+      incomes: [],
+      expenses: [],
+      totalIncome: 0,
+      totalExpenses: 0,
+      net: 0,
+    });
+  }
+
+  for (const entry of entries) {
+    for (const month of monthsForEntryInRange(entry, baseMonth, endMonth)) {
+      const group = groups.get(monthKey(month));
+      if (!group) continue;
+
+      const occurrence = { entry, month: group.month, amount: entry.amount };
+
+      if (entry.type === 'income') {
+        group.incomes.push(occurrence);
+        group.totalIncome += occurrence.amount;
+      } else {
+        group.expenses.push(occurrence);
+        group.totalExpenses += occurrence.amount;
+      }
+      group.net = group.totalIncome - group.totalExpenses;
+    }
+  }
+
+  return Array.from(groups.values())
+    .filter((group) => group.incomes.length > 0 || group.expenses.length > 0)
+    .map((group) => ({
+      ...group,
+      incomes: group.incomes.sort((a, b) => b.amount - a.amount),
+      expenses: group.expenses.sort((a, b) => b.amount - a.amount),
+    }));
+}
+
+function monthsForEntryInRange(entry: Entry, baseMonth: Date, endMonth: Date) {
+  const months: Date[] = [];
+  const startMonth = startOfMonth(parseISO(entry.start_date));
+  const entryEndMonth = entry.end_date ? startOfMonth(parseISO(entry.end_date)) : endMonth;
+  const firstMonth = maxMonth(startMonth, baseMonth);
+  const lastMonth = minMonth(entryEndMonth, endMonth);
+
+  if (monthKey(lastMonth) < monthKey(firstMonth)) {
+    return months;
+  }
+
+  if (entry.frequency === 'one_time') {
+    const startKey = monthKey(startMonth);
+    if (startKey >= monthKey(baseMonth) && startKey <= monthKey(endMonth)) {
+      months.push(startMonth);
+    }
+    return months;
+  }
+
+  if (entry.frequency === 'monthly') {
+    const lastKey = monthKey(lastMonth);
+    for (let current = firstMonth; monthKey(current) <= lastKey; current = addMonths(current, 1)) {
+      months.push(current);
+    }
+    return months;
+  }
+
+  const baseKey = monthKey(baseMonth);
+  const lastKey = monthKey(lastMonth);
+  for (let current = startMonth; monthKey(current) <= monthKey(endMonth); current = addYears(current, 1)) {
+    const currentKey = monthKey(current);
+    if (currentKey >= baseKey && currentKey <= lastKey) {
+      months.push(current);
+    }
+  }
+
+  return months;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function minMonth(left: Date, right: Date) {
+  return monthKey(left) <= monthKey(right) ? left : right;
+}
+
+function maxMonth(left: Date, right: Date) {
+  return monthKey(left) >= monthKey(right) ? left : right;
+}
+
+function monthLabelEs(date: Date) {
+  const label = format(date, 'MMMM yyyy', { locale: es });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function useForceLayout(

@@ -93,7 +93,7 @@ export function EntryForm({ initial, onSubmit, onCancel, submitLabel = 'Save ent
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${frequency === 'one_time' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
         <div>
           <label className="mb-1 block text-xs uppercase tracking-[0.12em] muted">Amount</label>
           <Input
@@ -109,15 +109,12 @@ export function EntryForm({ initial, onSubmit, onCancel, submitLabel = 'Save ent
           <label className="mb-1 block text-xs uppercase tracking-[0.12em] muted">Start date</label>
           <Input value={startDate} onChange={(event) => setStartDate(event.target.value)} type="date" required />
         </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase tracking-[0.12em] muted">End date (optional)</label>
-          <Input
-            value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
-            type="date"
-            disabled={frequency === 'one_time'}
-          />
-        </div>
+        {frequency !== 'one_time' ? (
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] muted">End date (optional)</label>
+            <Input value={endDate} onChange={(event) => setEndDate(event.target.value)} type="date" />
+          </div>
+        ) : null}
       </div>
 
       <div>
